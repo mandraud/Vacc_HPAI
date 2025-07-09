@@ -104,7 +104,7 @@ Sale=data.frame(Age=as.numeric(names(tmp)),proba=as.numeric(tmp))
 
 ## Flock introductions 
 
-La base de données MEP définie ci-dessous référence le nombre quotidien de lots mis en place sur la période d'étude.  
+The MEP database defined below records the daily number of flocks placed during the study period
 
 ```{r MEP}
 
@@ -130,10 +130,11 @@ plot_MEP_Chair
 
 ## Theoretical vaccination model for meat ducks
 
-Le modèle est sourcé à partir du fichier "Vaccination_Chair.R". Il prend en compte les dynamiques de population décrites ci-dessus, intégrant directement les données de Mises En Place (MEP) et les distributions de durées d'élevage. 
-Les temporalités de différentes phases de vaccination sont définies à partir des protocoles théoriques. La première visite est définie entre 10 et 21 jours d'âge avec une probabilité uniforme entre 10 et 15 jours plus élevée que sur la période suivante (jusqu'à 21 jours), reflétant les données observées sur le terrain. La seconde vaccination doit avoir lieu au plus tard 23 jours après la première. Une fenètre de temps entre 18 et 23 jours est prise en compte. 
+The model is sourced from the file "Vaccination_Chair.R". It incorporates the population dynamics described above, directly integrating the placement data (MEP) and the distributions of rearing durations.
 
-Le modèle résulte en une list de deux outputs: les sorties brutes et le graphique associé. 
+The timing of the different vaccination phases is defined based on theoretical protocols. The first visit is scheduled between 10 and 21 days of age, with a higher uniform probability between 10 and 15 days than during the following period (up to 21 days), reflecting field observations. The second vaccination must take place no later than 23 days after the first. A time window between 18 and 23 days is considered.
+
+The model produces a list with two outputs: the raw results and the associated plot.
 
 ```{r modèle Chair}
 
@@ -206,7 +207,7 @@ Sale_Gras=data.frame(Age=as.numeric(names(tmp)),proba=as.numeric(tmp))
 
 ## Flock introductions 
 
-La base de données MEP définie ci-dessous référence le nombre quotidien de lots mis en place sur la période d'étude.  
+The MEP database defined below records the daily number of flocks placed during the study period
 
 ```{r MEP gras}
 
@@ -256,11 +257,11 @@ Proportion of eligible flocks not vaccinated with third dose: `r prop_NonV3_EliV
 Proportion of non-eligible flocks vaccinated with third dose: `r prop_V3_NonEliV3 * 100` %
 
 ## Theoretical vaccination model for meat ducks
+The model is sourced from the file "Vaccination_gras.R". It incorporates the population dynamics described above, directly integrating the placement data (MEP) and the distributions of rearing durations.
 
-Le modèle est sourcé à partir du fichier "Vaccination_gras.R". Il prend en compte les dynamiques de population décrites ci-dessus, intégrant directement les données de Mises En Place (MEP) et les distributions de durées d'élevage. 
-Les temporalités de différentes phases de vaccination sont définies à partir des protocoles théoriques. La première visite est définie entre 10 et 21 jours d'âge avec une probabilité uniforme entre 10 et 15 jours plus élevée que sur la période suivante (jusqu'à 21 jours), reflétant les données observées sur le terrain. La seconde vaccination doit avoir lieu au plus tard 23 jours après la première. Une fenètre de temps entre 18 et 23 jours est prise en compte. 
+The timing of the different vaccination phases is defined based on theoretical protocols. The first visit is scheduled between 10 and 21 days of age, with a higher uniform probability between 10 and 15 days than during the following period (up to 21 days), reflecting field observations. The second vaccination must take place no later than 23 days after the first. A time window between 18 and 23 days is considered.
 
-Le modèle résulte en une list de deux outputs: les sorties brutes et le graphique associé. 
+The model produces a list with two outputs: the raw results and the associated plot.
 
 ```{r modèle gras}
 
