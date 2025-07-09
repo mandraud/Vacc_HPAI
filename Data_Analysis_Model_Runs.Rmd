@@ -1,0 +1,295 @@
+---
+title: "Analysis of Vaccination Intervals"
+author: "M. Andraud"
+date: "2025-01-07"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(skimr)
+library(psych)
+library(corrplot)
+library(PerformanceAnalytics)
+library(GGally)
+library(DataExplorer)
+library(summarytools)
+library(SmartEDA)
+library(janitor)
+library(inspectdf)
+library(tidyverse)
+library(tidyquant)
+library(ggplot2)
+library(survival)
+library(survminer)
+library(gridExtra)
+source("Vaccination_chair_annot.R")
+source("Vaccination_Gras_annot.R")
+Sys.setlocale("LC_TIME", "en_US.UTF-8")
+
+```
+
+## Objective
+
+The objective of this document is to analyze the durations related to vaccination protocols for meat and fatty duck production chains, with a view to integrating them into the 'vaccination.R' model.
+
+## Meat Duck Sector
+
+
+```{r Loading and Cleaning the Data}
+
+# Load the CSV file containing vaccination data for meat ducks
+Vacc_Chair=read.delim("data_vacc_IAHP_chair.csv",header = TRUE,sep=";",
+                     colClasses=c(SIRET="character",INSEE="character"))
+
+
+# Count the number of flocks without any vaccination (missing Age_V1)
+nb_nonVacc=sum(is.na(Vacc_Chair$Age_V1))    ### 285
+# Count the number of flocks with only the first vaccination (V1)
+nb_V1_Unique=sum(!is.na(Vacc_Chair$Age_V1) & is.na(Vacc_Chair$Age_V2))  ### 164
+# Count the number of flocks where V1 date equals V2 date (possible anomaly)
+nb_V1_is_V2=sum(Vacc_Chair$Age_V1==Vacc_Chair$Age_V2,na.rm = T) ### 5
+
+# Clean data: remove flocks without V1, with only V1, or where V1 equals V2
+Cleaned_Vacc_Chair=Vacc_Chair[which(!(is.na(Vacc_Chair$Age_V1)) &
+                                !(!is.na(Vacc_Chair$Age_V1) & is.na(Vacc_Chair$Age_V2)) & 
+                                !(Vacc_Chair$Age_V1==Vacc_Chair$Age_V2)),]
+
+```
+
+Number of flocks without vaccination : `r nb_nonVacc`
+
+Number of flocks with only V1 : `r nb_V1_Unique`
+
+Number of flocks with V1=V2 : `r nb_V1_is_V2`
+
+
+## Duration analysis
+```{r Durées}
+
+# Convert date columns to R Date format
+Vacc_Chair$Date_sortie=as.Date(Vacc_Chair$Date_sortie,format="%d/%m/%Y")
+# Convert date columns to R Date format
+Vacc_Chair$Date_MEP=as.Date(Vacc_Chair$Date_MEP,format="%d/%m/%Y")
+# Compute the total duration of the flock (from placement to exit)
+Vacc_Chair$DureeLot=Vacc_Chair$Date_sortie -Vacc_Chair$Date_MEP
+
+# Compute the total duration of the flock (from placement to exit)
+S=Surv(Vacc_Chair$DureeLot,!(Vacc_Chair$DureeLot<0))
+# Create a survival object for duration analysis
+survPlot<-ggsurvplot(survfit(Surv(DureeLot,!(DureeLot<0))~1,
+                   data=Vacc_Chair), fun="event",
+           Vacc_Chair, 
+           cumevents=TRUE,#risk.table = "nrisk_cumevents",
+           title=paste("Distribution des durées d\'élevage"),
+           legend.title="",legend="none",xlab="Detection time (days)",
+           ylab="Durée d'élevage",
+           surv.median.line = "hv"#ncensor.plot=TRUE,  
+          )
+survPlot
+ggplot(data=Vacc_Chair,aes(x=DureeLot))+
+geom_histogram(
+# Compute the total duration of the flock (from placement to exit)
+bins = as.numeric(range(Vacc_Chair$DureeLot)[2]),
+fill = "red",
+alpha = 0.4
+)
+#Distibution cummulée des probabilité de départ à l'abattoir en fonction de l'âge. 
+# Compute the total duration of the flock (from placement to exit)
+tmp=cumsum(prop.table(table(Vacc_Chair$DureeLot)))
+Sale=data.frame(Age=as.numeric(names(tmp)),proba=as.numeric(tmp))
+
+```
+
+## Flock introductions 
+
+La base de données MEP définie ci-dessous référence le nombre quotidien de lots mis en place sur la période d'étude.  
+
+```{r MEP}
+
+# Analysis of daily placement data
+# Convert date columns to R Date format
+data.frame(day=as.numeric(as.Date(names(table(Vacc_Chair$Date_MEP)))) - 19631,
+           nintro=as.numeric(table(Vacc_Chair$Date_MEP)))->MEP
+
+#FGraph associé à MEP
+plot_MEP_Chair <- ggplot(data=Vacc_Chair,aes(x=Date_MEP))+
+  geom_histogram(stat="count",
+    bins = 163,
+    fill = "salmon") + 
+  xlab("Date") + 
+  ylab("Number of new daily flock arrivals")+
+  ggtitle("(a) Meat Ducks") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%d-%b") 
+
+plot_MEP_Chair
+
+
+```
+
+## Theoretical vaccination model for meat ducks
+
+Le modèle est sourcé à partir du fichier "Vaccination_Chair.R". Il prend en compte les dynamiques de population décrites ci-dessus, intégrant directement les données de Mises En Place (MEP) et les distributions de durées d'élevage. 
+Les temporalités de différentes phases de vaccination sont définies à partir des protocoles théoriques. La première visite est définie entre 10 et 21 jours d'âge avec une probabilité uniforme entre 10 et 15 jours plus élevée que sur la période suivante (jusqu'à 21 jours), reflétant les données observées sur le terrain. La seconde vaccination doit avoir lieu au plus tard 23 jours après la première. Une fenètre de temps entre 18 et 23 jours est prise en compte. 
+
+Le modèle résulte en une list de deux outputs: les sorties brutes et le graphique associé. 
+
+```{r modèle Chair}
+
+
+sortie<- Vaccination_Modele_Chair(nweeks=26,ninit=MEP[1,2],Sale=Sale,MEP=MEP)
+sortie_chair<-sortie[[2]]
+sortie_chair
+
+```
+
+## Fattening duck sector
+
+
+```{r Loading and Cleaning the Data gras}
+
+# Load the CSV file containing vaccination data for meat ducks
+Vacc_gras=read.delim("data_vacc_IAHP_gras.csv",header = TRUE,sep=";")
+
+
+nb_nonVacc=sum(is.na(Vacc_gras$Age_V1))    ### 641
+nb_V1_Unique=sum(!is.na(Vacc_gras$Age_V1) & is.na(Vacc_gras$Age_V2))  ### 164
+nb_V1_is_V2=sum(Vacc_gras$Age_V1==Vacc_gras$Age_V2,na.rm = T) ### 5
+
+Cleaned_Vacc_gras=Vacc_gras[which(!(is.na(Vacc_gras$Age_V1)) &
+                                !(!is.na(Vacc_gras$Age_V1) & is.na(Vacc_gras$Age_V2)) & 
+                                !(Vacc_gras$Age_V1==Vacc_gras$Age_V2)),]
+
+```
+
+Number of flocks without vaccination : `r nb_nonVacc`
+
+Number of flocks with only V1 : `r nb_V1_Unique`
+
+Number of flocks with V1=V2 : `r nb_V1_is_V2`
+
+
+## Duration analysis
+```{r Durées gras}
+
+# Convert date columns to R Date format
+Vacc_gras$Date_sortie=as.Date(Vacc_gras$Date_sortie_calc,format='%Y-%m-%d')
+# Convert date columns to R Date format
+Vacc_gras$Date_MEP=as.Date(Vacc_gras$Date_mep1,format='%Y-%m-%d')
+Vacc_gras$DureeLot=Vacc_gras$Date_sortie -Vacc_gras$Date_MEP
+
+# Create a survival object for duration analysis
+S=Surv(Vacc_gras$DureeLot,!(Vacc_gras$DureeLot<0))
+# Plot the survival curve based on flock durations
+survPlot<-ggsurvplot(survfit(S~1,
+                   data=Vacc_gras), fun="event",
+           Vacc_gras, 
+           cumevents=TRUE,#risk.table = "nrisk_cumevents",
+           title=paste("Distribution des durées d\'élevage"),
+           legend.title="",legend="none",xlab="Detection time (days)",
+           ylab="Durée d'élevage",
+           surv.median.line = "hv"#ncensor.plot=TRUE,  
+          )
+survPlot
+ggplot(data=Vacc_gras,aes(x=DureeLot))+
+geom_histogram(
+bins = as.numeric(range(Vacc_gras$DureeLot,na.rm = T)[2]),
+fill = "red",
+alpha = 0.4
+)
+#Distibution cummulée des probabilité de départ à l'abattoir en fonction de l'âge. 
+tmp=cumsum(prop.table(table(Vacc_gras$DureeLot)))
+Sale_Gras=data.frame(Age=as.numeric(names(tmp)),proba=as.numeric(tmp))
+
+```
+
+## Flock introductions 
+
+La base de données MEP définie ci-dessous référence le nombre quotidien de lots mis en place sur la période d'étude.  
+
+```{r MEP gras}
+
+# Analysis of daily placement data
+# Convert date columns to R Date format
+cbind(day=as.numeric(as.Date(names(table(Vacc_gras$Date_MEP))))-19631,nintro=table(Vacc_gras$Date_MEP,Vacc_gras$eli_V3))->MEP_Gras
+
+Vacc_gras$eli_V3<-factor(Vacc_gras$eli_V3)
+levels(Vacc_gras$eli_V3)=c('Non Eligible','Eligible')
+#FGraph associé à MEP
+plot_MEP_Gras <- ggplot(data=Vacc_gras,aes(x=Date_MEP,fill=eli_V3))+
+  geom_histogram(
+    bins = as.numeric(max(Vacc_gras$Date_MEP)-min(Vacc_gras$Date_MEP))) + 
+  xlab("Dates") + 
+  ylab("Number of new daily flock arrivals")+theme(legend.position = c(0.8, 0.9),legend.title.position = "top" ) +
+  ggtitle("(b) Fattening Ducks") +
+  guides( fill = guide_legend(title = element_text("Third injection eligibility"),ncol = 2, byrow=TRUE))+
+  scale_x_date(date_breaks = "1 month", date_labels = "%d-%b")  
+
+plot_MEP_Gras
+
+#ggsave("C:/Users/m.salines/Desktop/Fig2.png", plot = grid.arrange(plot_MEP_Chair, plot_MEP_Gras), width = 10, height = 6, dpi = 600)
+
+
+```
+
+## Data related to the practice of the third dose
+
+The third dose is mandatory dans 73 communes du plan Adour et 45 communes du plan Vendée militaire. Excluded from this obligation les canards mulards agés de plus de 56 jours au 04 décembre 2023 et les canards mulards abattus avant l'^ge de 11 semaine.
+
+The third dose remains voluntary dans le reste des ZRD, avec priorité aux zones de recouvrement avec les ZRP. Elle est également volontaire autour des sites de sélection (périmètre de 3km) et multiplication (1 km).
+
+A delay in the second dose is defined avec un délivrance à 33 jours au lieu de 28 jours d'âge. 
+
+```{r third dose observance}
+
+sum(Vacc_gras$eli_V3=="Eligible")->eliV3
+sum(is.na(Vacc_gras$Age_V3[which(Vacc_gras$eli_V3=="Eligible")]->tmp))/length(tmp)->prop_NonV3_EliV3
+sum(!is.na(Vacc_gras$Age_V3[which(Vacc_gras$eli_V3=="Non Eligible")]->tmp))/length(tmp)->prop_V3_NonEliV3
+
+```
+
+Number of flocks eligible for third dose:`r eliV3`  
+
+Proportion of eligible flocks not vaccinated with third dose: `r prop_NonV3_EliV3 * 100` %
+
+Proportion of non-eligible flocks vaccinated with third dose: `r prop_V3_NonEliV3 * 100` %
+
+## Theoretical vaccination model for meat ducks
+
+Le modèle est sourcé à partir du fichier "Vaccination_gras.R". Il prend en compte les dynamiques de population décrites ci-dessus, intégrant directement les données de Mises En Place (MEP) et les distributions de durées d'élevage. 
+Les temporalités de différentes phases de vaccination sont définies à partir des protocoles théoriques. La première visite est définie entre 10 et 21 jours d'âge avec une probabilité uniforme entre 10 et 15 jours plus élevée que sur la période suivante (jusqu'à 21 jours), reflétant les données observées sur le terrain. La seconde vaccination doit avoir lieu au plus tard 23 jours après la première. Une fenètre de temps entre 18 et 23 jours est prise en compte. 
+
+Le modèle résulte en une list de deux outputs: les sorties brutes et le graphique associé. 
+
+```{r modèle gras}
+
+
+sortie<- Vaccination_Modele_Gras(nweeks=26,nNonV3 = MEP_Gras[1,2],                                 nV3=MEP_Gras[1,3],Sale=Sale_Gras,MEP=MEP_Gras)
+sortie_gras <- sortie[[2]]
+sortie_gras
+
+```
+
+### Supplementary material
+```{r FigurePapier}
+
+sortie<- Vaccination_Modele_Gras(nweeks=26,nNonV3 = MEP_Gras[1,2],                                 nV3=MEP_Gras[1,3],Sale=Sale_Gras,MEP=MEP_Gras)
+sortie_gras <- sortie[[2]]
+sortie<- Vaccination_Modele_Chair(nweeks=26,ninit=MEP[1,2],Sale=Sale,MEP=MEP)
+sortie_chair<-sortie[[2]]
+sortie_chair<-sortie_chair+theme(legend.position="none")+ggtitle("(a) Meat ducks")
+sortie_gras<-sortie_gras+ggtitle("(b) Fattening ducks")
+plot <- grid.arrange(sortie_chair,sortie_gras,heights = c(0.7, 1))
+
+ggsave("C:/Users/m.andraud/Desktop/SuppMat3.png", plot = plot, width = 10, height = 6, dpi = 600)
+
+```
+
+```{r iterations, echo=FALSE}
+
+source("iterations.R")
+plot_Chair
+plot_Gras
+
+```
