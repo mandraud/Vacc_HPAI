@@ -15,7 +15,7 @@ counts <- iterations %>%
 
 # Graphique ggplot
 plot_Chair <- ggplot(counts, aes(x = factor(week), y = count)) +
-  geom_boxplot(aes(color = statut, fill = statut), alpha = 0.4) +  # Remplissage et couleur basés sur 'statut'
+  geom_boxplot(aes(color = statut, fill = statut), alpha = 0.4,outlier.shape = NA ) +  # Remplissage et couleur basés sur 'statut'
   scale_color_manual(values = c("orange3", "seashell4", 
                                 "seagreen2", "seagreen4", "chartreuse3")) +  # Couleurs des contours
   scale_fill_manual(values = c("orange3", "seashell4", 
@@ -51,7 +51,7 @@ counts$color=c("orange3", "seashell4",
                "seagreen2", "seagreen4", "chartreuse3")[as.numeric(factor(counts$statut))]
 # Graphique ggplot
 plot_Gras <- ggplot(counts, aes(x = factor(week), y = count)) +
-  geom_boxplot(aes(color = statut, fill = statut), alpha = 0.4,) +  # Remplissage et couleur basés sur 'statut'
+  geom_boxplot(aes(color = statut, fill = statut), alpha = 0.4,outlier.shape = NA ) +  # Remplissage et couleur basés sur 'statut'
   scale_color_manual(values = c("orange3", "seashell4",
                                 "seagreen2", "seagreen4", "chartreuse3")) +  # Couleurs des contours
   scale_fill_manual(values = c("orange3", "seashell4", 
